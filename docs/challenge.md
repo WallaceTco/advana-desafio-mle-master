@@ -130,3 +130,116 @@ Proceed to **Part II — API Deployment**, where the trained model will be expos
 - Currently restricted to 10 categorical OHE columns (required for automated tests).
 - Model persistence (save/load) not yet implemented — to be added in Part II.
 - Logistic Regression was chosen for simplicity; future versions may include explainability, calibration, and monitoring for data drift.
+
+# 🧩 Part II — API Deployment with FastAPI
+
+## 1. Objective
+Expose the trained `DelayModel` through a RESTful API built with **FastAPI**.  
+This allows predictions to be served via HTTP requests, enabling integration with external systems and automated testing.
+
+---
+
+## 2. Design Overview
+
+The API is implemented in `challenge/api.py`.  
+The package entrypoint `challenge/__init__.py` re-exports the FastAPI instance (`app`) so that the test suite can import it directly using:
+
+`from challenge import app`
+
+Upon startup, the API automatically loads the dataset (`data/data.csv`), preprocesses it, and fits the model in memory.  
+This ensures the service is immediately ready to respond to `/predict` requests without requiring a separate training phase.
+
+---
+
+## 3. Endpoints
+
+### **GET /health**
+Health check endpoint that confirms the API is operational.
+
+**Response:**  
+`{"status": "OK"}`
+
+---
+
+### **POST /predict**
+Predicts whether one or more flights will experience a delay greater than 15 minutes.
+
+**Request body:**  
+`{"flights": [ { "OPERA": "Aerolineas Argentinas", "TIPOVUELO": "N", "MES": 3 } ]}`
+
+**Response:**  
+`{"predict": [0]}`
+
+---
+
+## 4. Input Validation
+
+The `/predict` endpoint includes strict validation rules to ensure consistent behavior and meaningful responses:
+
+| Field | Accepted values | Error code |
+|--------|------------------|-------------|
+| `OPERA` | Must exist in the training dataset | 400 |
+| `TIPOVUELO` | `"I"` or `"N"` only | 400 |
+| `MES` | Integer between 1 and 12 | 400 |
+
+If any validation fails, the API responds with a **400 Bad Request** error and a descriptive message under the `detail` field.
+
+---
+
+## 5. Internal Workflow
+
+1. **Startup:** Load and preprocess `data/data.csv`.
+2. **Model fit:** Train the `DelayModel` using the fixed top 10 features.
+3. **Request validation:** Check incoming flight records for valid values.
+4. **Preprocessing:** One-Hot Encode `OPERA`, `TIPOVUELO`, and `MES`.
+5. **Prediction:** Use the in-memory model to predict binary delay labels (0 or 1).
+6. **Response:** Return a JSON object with the key `"predict"`.
+
+---
+
+## 6. Example Usage
+
+Run the API locally:
+uvicorn challenge.api:app --reload
+
+Example request:
+curl -X POST "http://127.0.0.1:8000/predict" \
+-H "Content-Type: application/json" \
+-d '{"flights":[{"OPERA":"Aerolineas Argentinas","TIPOVUELO":"N","MES":3}]}'
+
+Response:
+{"predict": [0]}
+
+---
+
+## 7. Testing and Validation
+
+The API implementation is verified using automated tests under `tests/api/test_api.py`.
+
+Command to run tests:
+make api-test
+
+or directly:
+pytest -q tests/api/test_api.py
+
+Tests confirm that:
+- Valid input returns status `200` and a valid prediction key `"predict"`.
+- Invalid values in any field trigger `HTTP 400` with proper error details.
+
+---
+
+## 8. Good Practices Applied
+
+- ✅ **Automatic model training** at startup (eager loading).
+- ✅ **Strict schema validation** for input data.
+- ✅ **Consistent field names** (`flights` for input, `predict` for output).
+- ✅ **Modular design** — FastAPI routes, model, and schema are isolated.
+- ✅ **Ready for production** — fully testable and compliant with provided test suites.
+
+---
+
+
+## 9. Next Steps
+
+In the next stage (Part III), the API will be containerized, deployed, and tested under load to evaluate scalability and latency.  
+Future work includes adding model persistence (save/load) and logging for observability.
