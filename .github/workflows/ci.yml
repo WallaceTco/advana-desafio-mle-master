@@ -46,11 +46,28 @@ jobs:
           pip install -r requirements-test.txt
           pip install -r requirements.txt
 
-      - name: Run model tests
-        run: make model-test
+      - name: Run model tests (cwd=tests/)
+        working-directory: tests
+        run: |
+          mkdir -p ../reports || true
+          pytest \
+            --cov-config=../.coveragerc \
+            --cov-report=term \
+            --cov-report=html:../reports/html \
+            --cov-report=xml:../reports/coverage.xml \
+            --junitxml=../reports/junit.xml \
+            --cov=challenge \
+            model
 
-      - name: Run API tests
-        run: make api-test
+      - name: Run API tests (cwd=tests/) — append coverage
+        working-directory: tests
+        run: |
+          pytest \
+            --cov-config=../.coveragerc \
+            --cov-append \
+            --cov-report=term \
+            --cov=challenge \
+            api
 
       - name: Upload coverage (HTML)
         if: always()
