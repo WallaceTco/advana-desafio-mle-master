@@ -48,18 +48,22 @@ jobs:
 
       - name: Run model tests
         working-directory: tests
+        env:
+          COVERAGE_RCFILE: ../.coveragerc
         run: |
           mkdir -p ../reports || true
           pytest -q model \
-          --cov=challenge \
-          --cov-config=../.coveragerc \
-          --cov-report=term \
-          --cov-report=html:../reports/html \
-          --cov-report=xml:../reports/coverage.xml \
-          --junitxml=../reports/junit.xml
+            --cov=challenge \
+            --cov-config=../.coveragerc \
+            --cov-report=term \
+            --cov-report=html:../reports/html \
+            --cov-report=xml:../reports/coverage.xml \
+            --junitxml=../reports/junit.xml
 
       - name: Run API tests
         working-directory: tests
+        env:
+          COVERAGE_RCFILE: ../.coveragerc
         run: |
           pytest -q api \
             --cov=challenge \
