@@ -1,0 +1,65 @@
+name: 'Continuous Delivery'
+
+on:
+  push:
+    branches: ["master"]
+    paths:
+      - "challenge/**"
+      - "tests/**"
+      - "data/**"
+      - "Dockerfile"
+      - "requirements.txt"
+      - "Makefile"
+      - ".dockerignore"
+      - ".github/workflows/cd.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      REGION: ${{ secrets.CLOUD_RUN_REGION }}
+      SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
+      IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/scl-delay:${{ github.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set gcloud project
+        run: gcloud config set project "${PROJECT_ID}"
+
+      - name: Enable required services (idempotent)
+        run: |
+          gcloud services enable run.googleapis.com cloudbuild.googleapis.com
+
+      - name: Build container with Cloud Build
+        run: |
+          gcloud builds submit --tag "${IMAGE}"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "${SERVICE}" \
+            --image "${IMAGE}" \
+            --region "${REGION}" \
+            --platform managed \
+            --allow-unauthenticated
+
+      - name: Show service URL
+        run: |
+          URL=$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')
+          echo "Cloud Run URL: ${URL}"
