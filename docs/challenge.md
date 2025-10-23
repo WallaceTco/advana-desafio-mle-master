@@ -344,6 +344,7 @@ Average and percentile response times remained stable, and the test report was a
 The deployment to **Google Cloud Run** was successful, allowing the API to run in a fully managed and publicly accessible environment.  
 Stress tests confirmed the API’s stability, showing consistent performance with 0% failure rate.  
 The local setup was correctly configured using `make`, `pip`, and virtual environments, ensuring future testing can be reproduced reliably.
+Final verification: After pinning `anyio==3.x`, all API tests and stress validations passed successfully both locally and in CI.
 
 # 🧩 Part IV — CI/CD with GitHub Actions
 
@@ -367,9 +368,11 @@ Provide a simple, reliable CI/CD setup that:
 - Install `requirements-*.txt`.
 - Run `make model-test` and `make api-test`.
 - Upload coverage and JUnit reports as workflow artifacts.
-
+- Pin `anyio==3.x` to maintain compatibility with Starlette TestClient (fixes missing `start_blocking_portal` error).
+- 
 **Outcome**
-Fast feedback on code quality and API correctness before merging.
+- Fast feedback on code quality and API correctness before merging.
+- Ensures environment stability by fixing dependency versions (e.g., `anyio==3.x`).
 
 ---
 
@@ -418,6 +421,7 @@ A reproducible, one-click (or on-merge) deployment to a managed, scalable runtim
 
 **Verifying**
 - Check the **service URL** printed in the CD job logs.
+- Confirm CI pipeline success → green badge indicates model and API tests passed on Python 3.10 with pinned dependencies.
 - Optionally run:  
   `make stress-test` after updating `STRESS_URL` in `Makefile`.
 

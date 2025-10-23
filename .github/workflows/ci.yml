@@ -34,8 +34,7 @@ jobs:
         with:
           path: ~/.cache/pip
           key: >-
-            pip-${{ runner.os }}-${{ matrix.python-version }}-${{
-            hashFiles('requirements*.txt') }}
+            pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
             pip-${{ runner.os }}-${{ matrix.python-version }}-
 
@@ -46,11 +45,56 @@ jobs:
           pip install -r requirements-test.txt
           pip install -r requirements.txt
 
+      - name: Ensure coverage config
+        run: |
+          if [ ! -f .coveragerc ]; then
+            cat > .coveragerc << 'EOF'
+          [run]
+          branch = True
+          source = challenge
+  
+          [report]
+          show_missing = True
+          skip_covered = False
+          EOF
+          fi
+
+      - name: Verify repo layout and required files
+        run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          ls -la "$GITHUB_WORKSPACE"
+          ls -la "$GITHUB_WORKSPACE/tests"
+          ls -la "$GITHUB_WORKSPACE/data" || true
+          # Verificación suave (no cortar pipeline)
+          test -f "$GITHUB_WORKSPACE/data/data.csv" || (echo "WARN: data/data.csv missing" && true)
+
       - name: Run model tests
-        run: make model-test
+        working-directory: tests
+        env:
+          COVERAGE_RCFILE: ${{ github.workspace }}/.coveragerc
+        run: |
+          mkdir -p ../reports || true
+          pytest -q model \
+            --cov=challenge \
+            --cov-config="${{ github.workspace }}/.coveragerc" \
+            --cov-report=term \
+            --cov-report=html:../reports/html \
+            --cov-report=xml:../reports/coverage.xml \
+            --junitxml=../reports/junit.xml
 
       - name: Run API tests
-        run: make api-test
+        working-directory: tests
+        env:
+          COVERAGE_RCFILE: ${{ github.workspace }}/.coveragerc
+        run: |
+          pytest -q api \
+            --cov=challenge \
+            --cov-config="${{ github.workspace }}/.coveragerc" \
+            --cov-append \
+            --cov-report=term \
+            --cov-report=html:../reports/html \
+            --cov-report=xml:../reports/coverage.xml \
+            --junitxml=../reports/junit.xml
 
       - name: Upload coverage (HTML)
         if: always()
