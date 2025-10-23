@@ -34,8 +34,7 @@ jobs:
         with:
           path: ~/.cache/pip
           key: >-
-            pip-${{ runner.os }}-${{ matrix.python-version }}-${{
-            hashFiles('requirements*.txt') }}
+            pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
             pip-${{ runner.os }}-${{ matrix.python-version }}-
 
@@ -46,15 +45,25 @@ jobs:
           pip install -r requirements-test.txt
           pip install -r requirements.txt
 
+      # --- NUEVO: sanity checks y listado para depurar ---
+      - name: Verify repo layout and required files
+        run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          ls -la "$GITHUB_WORKSPACE"
+          ls -la "$GITHUB_WORKSPACE/tests"
+          ls -la "$GITHUB_WORKSPACE/data" || true
+          test -f "$GITHUB_WORKSPACE/.coveragerc" || (echo "ERROR: .coveragerc missing at repo root" && exit 1)
+          test -f "$GITHUB_WORKSPACE/data/data.csv" || (echo "ERROR: data/data.csv missing" && exit 1)
+
       - name: Run model tests
         working-directory: tests
         env:
-          COVERAGE_RCFILE: ../.coveragerc
+          COVERAGE_RCFILE: ${{ github.workspace }}/.coveragerc
         run: |
           mkdir -p ../reports || true
           pytest -q model \
             --cov=challenge \
-            --cov-config=../.coveragerc \
+            --cov-config="${{ github.workspace }}/.coveragerc" \
             --cov-report=term \
             --cov-report=html:../reports/html \
             --cov-report=xml:../reports/coverage.xml \
@@ -63,11 +72,11 @@ jobs:
       - name: Run API tests
         working-directory: tests
         env:
-          COVERAGE_RCFILE: ../.coveragerc
+          COVERAGE_RCFILE: ${{ github.workspace }}/.coveragerc
         run: |
           pytest -q api \
             --cov=challenge \
-            --cov-config=../.coveragerc \
+            --cov-config="${{ github.workspace }}/.coveragerc" \
             --cov-append \
             --cov-report=term \
             --cov-report=html:../reports/html \
