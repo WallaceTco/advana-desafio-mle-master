@@ -344,3 +344,91 @@ Average and percentile response times remained stable, and the test report was a
 The deployment to **Google Cloud Run** was successful, allowing the API to run in a fully managed and publicly accessible environment.  
 Stress tests confirmed the API’s stability, showing consistent performance with 0% failure rate.  
 The local setup was correctly configured using `make`, `pip`, and virtual environments, ensuring future testing can be reproduced reliably.
+
+# 🧩 Part IV — CI/CD with GitHub Actions
+
+## 1. Objective
+Provide a simple, reliable CI/CD setup that:
+- Validates the project on every change (unit tests for model and API).
+- Builds and deploys the container to **Google Cloud Run** from `master`.
+
+---
+
+## 2. What we implemented
+
+### 2.1 Continuous Integration (`.github/workflows/ci.yml`)
+**Triggers**
+- `push` on any branch (except pure docs-only changes).
+- `pull_request` targeting `master`.
+
+**Steps**
+- Set up Python 3.10.
+- Cache pip packages.
+- Install `requirements-*.txt`.
+- Run `make model-test` and `make api-test`.
+- Upload coverage and JUnit reports as workflow artifacts.
+
+**Outcome**
+Fast feedback on code quality and API correctness before merging.
+
+---
+
+### 2.2 Continuous Delivery (`.github/workflows/cd.yml`)
+**Triggers**
+- `push` to `master` (automatic deploy).
+- Manual run via “Run workflow” (for ad-hoc deployments).
+
+**Steps**
+- Authenticate to GCP using a **Service Account JSON** stored in `GCP_SA_KEY`.
+- Enable required services (idempotent).
+- Build the container with **Cloud Build**:
+   - Image: `gcr.io/$GCP_PROJECT_ID/scl-delay:${GITHUB_SHA}`
+- Deploy to **Cloud Run**:
+   - Service: `$CLOUD_RUN_SERVICE`
+   - Region: `$CLOUD_RUN_REGION`
+   - `--allow-unauthenticated`
+- Print the public **service URL** in the job logs.
+
+**Outcome**
+A reproducible, one-click (or on-merge) deployment to a managed, scalable runtime.
+
+---
+
+## 3. Required secrets (Repository → Settings → Secrets and variables → Actions)
+- `GCP_PROJECT_ID` → e.g., `advana-challenge-ml`
+- `CLOUD_RUN_REGION` → e.g., `us-central1`
+- `CLOUD_RUN_SERVICE` → e.g., `scl-delay`
+- `GCP_SA_KEY` → **Full** JSON of the GCP Service Account key (not only the private key field)
+
+> For security, rotate the key if it was ever exposed and limit SA roles to:
+> `roles/run.admin`, `roles/iam.serviceAccountUser`, `roles/cloudbuild.builds.editor`.
+
+---
+
+## 4. How to use it
+
+**Development flow**
+1. Open PRs from feature branches → `develop`.
+2. **CI** runs on push & PR; fix tests if needed.
+3. Merge `develop` → `master` when ready.
+
+**Deployment**
+- On merge/push to `master`, **CD** builds and deploys to Cloud Run.
+- You can also trigger CD manually from the Actions tab (workflow dispatch).
+
+**Verifying**
+- Check the **service URL** printed in the CD job logs.
+- Optionally run:  
+  `make stress-test` after updating `STRESS_URL` in `Makefile`.
+
+---
+
+## 5. Notes & Rollback
+- Deploys are tagged by commit SHA; you can redeploy a previous image with:
+  `gcloud run deploy <SERVICE> --image gcr.io/<PROJECT>/<IMAGE>:<OLD_SHA> ...`
+- Artifacts (coverage/JUnit) remain attached to CI runs for traceability.
+
+---
+
+## 6. Conclusion
+The CI/CD pipeline keeps quality high via automated testing and makes releases predictable by deploying the same, reproducible container image to Cloud Run on every change to `master`.
