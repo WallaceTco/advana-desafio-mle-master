@@ -243,3 +243,104 @@ Tests confirm that:
 
 In the next stage (Part III), the API will be containerized, deployed, and tested under load to evaluate scalability and latency.  
 Future work includes adding model persistence (save/load) and logging for observability.
+
+## 🧩 Part III – Deployment on Google Cloud Run and Stress Test
+
+### 1️⃣ GCP Environment Setup
+**Goal:** Deploy the challenge API in a fully managed, scalable serverless environment using **Google Cloud Run**.
+
+**Steps performed:**
+1. Enabled required services:
+   ```bash
+   gcloud services enable run.googleapis.com cloudbuild.googleapis.com
+   ```
+2. Built the Docker image and published it to Google Container Registry:
+   ```bash
+   gcloud builds submit --tag gcr.io/PROJECT_ID/scl-delay
+   ```
+3. Deployed the API to Cloud Run:
+   ```bash
+   gcloud run deploy scl-delay        --image gcr.io/PROJECT_ID/scl-delay        --platform managed        --region us-central1        --allow-unauthenticated
+   ```
+4. Once deployment was completed, the **public service URL** was obtained:
+   ```
+   https://scl-delay-675225648543.us-central1.run.app
+   ```
+
+---
+
+### 2️⃣ Local Environment Configuration
+**Goal:** Prepare the local environment to run automated performance tests.
+
+**Steps performed:**
+1. Create a Python virtual environment:
+   ```bash
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   python -m pip install -U pip
+   ```
+2. Install specific dependency versions:
+   ```bash
+   pip install "Flask==1.1.2" "Werkzeug==1.0.1" "Jinja2==2.11.3" "itsdangerous==1.1.0" "click==7.1.2"
+   ```
+3. Install the `make` utility on Windows using Scoop:
+   ```bash
+   Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force; iwr -useb get.scoop.sh | iex; scoop install make
+   ```
+4. Install project dependencies:
+   ```bash
+   make install
+   ```
+5. Update the **Makefile** configuration:
+   ```makefile
+   STRESS_URL = https://scl-delay-675225648543.us-central1.run.app
+   ```
+
+---
+
+### 3️⃣ Load Testing Execution
+**Goal:** Validate the performance and stability of the `/predict` endpoint under load.
+
+**Command executed:**
+```bash
+make stress-test
+```
+
+**Test configuration (from Makefile):**
+- Duration: 60 seconds
+- Concurrent users: 100
+- Spawn rate: 1 user/second
+- Tool: [Locust](https://locust.io)
+- Output: `reports/stress-test.html`
+
+**Results obtained:**
+| Metric | Value |
+|--------|--------|
+| Total requests | **4,933** |
+| Fails | **0 (0.00%)** |
+| Average response time | **363 ms** |
+| P50 (median) | **320 ms** |
+| P95 | **630 ms** |
+| P99 | **740 ms** |
+| Max response (outlier) | **~10 s** |
+
+**Conclusion:**  
+The API performed successfully under concurrent load with no errors.  
+Average and percentile response times remained stable, and the test report was automatically generated at `reports/stress-test.html` (excluded from version control).
+
+---
+
+### 4️⃣ Files Modified or Added
+| File | Description |
+|------|--------------|
+| `Dockerfile` | Defines the image build and run process for Cloud Run |
+| `.dockerignore` | Excludes unnecessary files from the Docker build context |
+| `Makefile` | Updated with the Cloud Run `STRESS_URL` for stress testing |
+| `challenge.md` | Official documentation for Part III (this section) |
+
+---
+
+### 5️⃣ Summary and Conclusions
+The deployment to **Google Cloud Run** was successful, allowing the API to run in a fully managed and publicly accessible environment.  
+Stress tests confirmed the API’s stability, showing consistent performance with 0% failure rate.  
+The local setup was correctly configured using `make`, `pip`, and virtual environments, ensuring future testing can be reproduced reliably.
